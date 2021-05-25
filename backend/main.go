@@ -10,6 +10,7 @@ import (
 	"initialize/class"
 	"log"
 	"net/http"
+	"strconv"
 )
 
 //
@@ -32,11 +33,11 @@ import (
 var Doctori []class.Doctor
 var Pacienti []class.Pacient
 
-func returnAllDoctori(w http.ResponseWriter, r *http.Request) {
+func ReturnAllDoctori(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("Endpoint Hit: returnAllArticles")
 	json.NewEncoder(w).Encode(Doctori)
 }
-func returnAllPacienti(w http.ResponseWriter, r *http.Request) {
+func ReturnAllPacienti(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("Endpoint Hit: returnAllArticles")
 	json.NewEncoder(w).Encode(Pacienti)
 }
@@ -48,24 +49,30 @@ func homePage(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, "html/index.html")
 }
 
-func returnSinglePacient(w http.ResponseWriter, r *http.Request) {
+func ReturnSinglePacient(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	key := vars["id"]
 
 	for _, pacient := range Pacienti {
-		if string(pacient.Id) == key {
+		id := strconv.Itoa(pacient.GetId())
+		if id == key {
 			json.NewEncoder(w).Encode(pacient)
+			w.WriteHeader(http.StatusOK)
+			return
 		}
 	}
 }
 
-func returnSingleDoctor(w http.ResponseWriter, r *http.Request) {
+func ReturnSingleDoctor(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	key := vars["id"]
 
 	for _, doctor := range Doctori {
-		if string(doctor.Id) == key {
+		id := strconv.Itoa(doctor.GetId())
+		if id == key {
 			json.NewEncoder(w).Encode(doctor)
+			w.WriteHeader(http.StatusOK)
+			return
 		}
 	}
 }
@@ -99,9 +106,11 @@ func login(w http.ResponseWriter, r *http.Request) {
 		if pacient.Mail == key[0] && pacient.Cnp == key1[0] {
 			//json.NewEncoder(w).Encode(pacient)
 			http.ServeFile(w, r, "html/dashBoardPacienti.html")
+			w.WriteHeader(http.StatusOK)
+			return
 		}
 	}
-
+	errorHandler(w, r, http.StatusForbidden)
 }
 
 func loginDoctor(w http.ResponseWriter, r *http.Request) {
@@ -123,9 +132,23 @@ func loginDoctor(w http.ResponseWriter, r *http.Request) {
 		if doctor.Mail == key[0] && doctor.Cnp == key1[0] {
 			//json.NewEncoder(w).Encode(doctor)
 			http.ServeFile(w, r, "html/dashBoardDoctori.html")
+			w.WriteHeader(http.StatusOK)
+			return
 		}
 	}
+	errorHandler(w, r, http.StatusForbidden)
+}
 
+
+
+func errorHandler(w http.ResponseWriter, r *http.Request, status int) {
+	w.WriteHeader(status)
+	if status == http.StatusNotFound {
+		http.ServeFile(w, r, "html/ups.html")
+	}
+	if status == http.StatusForbidden {
+		http.ServeFile(w, r, "html/ups.html")
+	}
 }
 
 func handleRequests() {
@@ -138,10 +161,10 @@ func handleRequests() {
 	myRouter.PathPrefix("/fonts/").Handler(http.StripPrefix("/fonts/", http.FileServer(http.Dir("html/fonts"))))
 
 	myRouter.HandleFunc("/", homePage)
-	myRouter.HandleFunc("/alldoctori", returnAllDoctori)
-	myRouter.HandleFunc("/allpacienti", returnAllPacienti)
-	myRouter.HandleFunc("/doctor/{id}", returnSingleDoctor)
-	myRouter.HandleFunc("/pacient/{id}", returnSinglePacient)
+	myRouter.HandleFunc("/alldoctori", ReturnAllDoctori)
+	myRouter.HandleFunc("/allpacienti", ReturnAllPacienti)
+	myRouter.HandleFunc("/doctor/{id}", ReturnSingleDoctor)
+	myRouter.HandleFunc("/pacient/{id}", ReturnSinglePacient)
 	myRouter.HandleFunc("/login", login)
 	myRouter.HandleFunc("/loginDoctor", loginDoctor)
 
@@ -171,10 +194,10 @@ func (productModel ProductModel) FindAllDoctori() ([]class.Doctor, error) {
 			var id int
 			var nume string
 			var prenume string
-			var mail string
 			var specialitate string
+			var mail string
 			var cnp string
-			err2 := rows.Scan(&id, &nume, &prenume, &mail, &specialitate, &cnp)
+			err2 := rows.Scan(&id, &nume, &prenume,  &specialitate,&mail, &cnp)
 			if err2 != nil {
 				return [] class.Doctor{}, err2
 			} else {
@@ -208,19 +231,7 @@ func (productModel ProductModel) FindAllPacienti() ([]class.Pacient, error) {
 	}
 }
 
-func main() {
-	fmt.Println("Spital blana!")
-
-	//Pacienti = []class.Pacient{
-	//	class.Pacient{Id: 1, Nume: "Mariana", Prenume: "Ionescu", Mail: "mionesc@yahoo.com", Cnp: "123456789"},
-	//	class.Pacient{Id: 2, Nume: "Ion", Prenume: "Raducan", Mail: "irad@yahoo.com", Cnp: "123456789"},
-	//	class.Pacient{Id: 3, Nume: "Pulea", Prenume: "Pulea", Mail: "pulea@yahoo.com", Cnp: "123456789"},
-	//}
-	//Doctori = []class.Doctor{
-	//	class.Doctor{Id: 1, Nume: "Mariana", Prenume: "Ionescu", Specialitate: "Dentist", Mail: "mionesc@yahoo.com", Cnp: "123456789"},
-	//	class.Doctor{Id: 2, Nume: "Ion", Prenume: "Marin", Specialitate: "Ortoped", Mail: "irad@yahoo.com", Cnp: "123456789"},
-	//}
-
+func init(){
 	psqlInfo := fmt.Sprintf("host=%s port=%d user=%s "+"password=%s dbname=%s sslmode=disable", host, port, user, password, dbname)
 	db, err := sql.Open("postgres", psqlInfo)
 	if err != nil {
@@ -254,6 +265,45 @@ func main() {
 			Pacienti = pacienti
 		}
 	}
+}
+
+func main() {
+	fmt.Println("Spital blana!")
+
+
+	//psqlInfo := fmt.Sprintf("host=%s port=%d user=%s "+"password=%s dbname=%s sslmode=disable", host, port, user, password, dbname)
+	//db, err := sql.Open("postgres", psqlInfo)
+	//if err != nil {
+	//	panic(err)
+	//}
+	//defer db.Close()
+	//
+	//err = db.Ping()
+	//if err != nil {
+	//	panic(err)
+	//}
+	//
+	//fmt.Println("Successfully connected!")
+	//
+	//
+	//if err != nil {
+	//	fmt.Println(err)
+	//} else {
+	//	productModel := ProductModel{
+	//		Db: db,
+	//	}
+	//	doctori, err2 := productModel.FindAllDoctori()
+	//	pacienti, err3 :=productModel.FindAllPacienti()
+	//
+	//	if err2 != nil {
+	//		fmt.Println(err2)
+	//	} else if err3 != nil {
+	//		fmt.Println(err3)
+	//	} else {
+	//		Doctori = doctori
+	//		Pacienti = pacienti
+	//	}
+	//}
 
 	handleRequests()
 
